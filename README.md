@@ -32,13 +32,13 @@ For example, standard Arduino ESP32 core lib gives ~5 ms lag before opening firs
 This class allows addressing files directly by sectors, and read sector-aligned blocks.
 
 This is what I have measured for an old random 16GB Card that I had.
-sectors per read  |  reading speed, MB/s
-------------------+---------------------
-        1         |        0.90
-        2         |        1.57
-        4         |        2.82
-        8         |        5.00
-       16         |        7.79
-       32         |       11.12
-       64         |       13.85
-      128         |       15.75
+|sectors per read  |  reading speed, MB/s |
+|------------------|----------------------|
+|        1         |        0.90          |
+|        2         |        1.57          |
+|        4         |        2.82          |
+|        8         |        5.00          |
+|       16         |        7.79          |
+|       32         |       11.12          |
+|       64         |       13.85          |
+|      128         |       15.75          |
