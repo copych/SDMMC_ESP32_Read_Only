@@ -301,6 +301,7 @@ void SDMMC_FAT32::rewindDir() {
   _currentCluster   = _startCluster;
   _startSector      = firstSectorOfCluster(_startCluster);
   _currentSector    = _startSector;
+  _dirent_num = 0;
   _currentEntry.name = "";
   _currentEntry.size = 0;
   _currentEntry.is_dir = -1;
