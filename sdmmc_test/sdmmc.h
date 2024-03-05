@@ -8,7 +8,7 @@
  */
 
 #include "sdmmc_types.h"
-#define USE_MUTEX
+//#define USE_MUTEX
 
 
 /* 
@@ -29,16 +29,19 @@ class SDMMC_FAT32 {
     void setCurrentDir(fpath_t pathToDir);
     void printCurrentDir();
     void rewindDir();
-    entry_t* nextEntry();
-    entry_t* buildNextEntry();
-    entry_t* currentEntry();
+    entry_t*  findEntry(const fpath_t& fname);
+    entry_t*  nextEntry();
+    entry_t*  buildNextEntry();
+    entry_t*  currentEntry()  {return &_currentEntry;};
  
     esp_err_t read_block(void *dst, uint32_t start_sector, uint32_t sector_count);
     esp_err_t read_sector(uint32_t sector); // reads one sector into uint8_t sector_buf[]
     esp_err_t cache_fat( uint32_t sector ); // reads FAT_CACHE_SECTORS into uint8_t fat_cache.uint8[] sets first and last sectors read
     esp_err_t cache_dir( uint32_t sector ); // reads DIR_CACHE_SECTORS into uint8_t dir_cache[] sets first and last sectors read
     esp_err_t write_block(const void *source, uint32_t block, uint32_t size);
-
+    uint8_t*  readFirstSector(const fname_t& fname); // 
+    uint8_t*  readFirstSector(entry_t* entry);
+    
     uint8_t   getPartitionId()      {return _partitionId;}
     uint32_t  getFirstSector()      {return _firstSector;}
     uint32_t  getFsType()           {return _fsType;}
@@ -56,10 +59,10 @@ class SDMMC_FAT32 {
   private:
     struct __attribute__((packed)) {
       uint8_t   code[440];
-      uint32_t  diskSerial; //This is optional
-      uint16_t  reserved; //Usually 0x0000
+      uint32_t  diskSerial;   // This is optional
+      uint16_t  reserved;     // Usually 0x0000
       part_t    partitionData[4];
-      uint8_t   bootSign[2]; //0x55 0xAA for bootable
+      uint8_t   bootSign[2];  // 0x55 0xAA for bootable
     } mbrStruct;
 
     struct __attribute__((packed)) {
@@ -138,8 +141,8 @@ class SDMMC_FAT32 {
     inline uint32_t fat32_cluster_id(uint16_t high, uint16_t low)  {return high << 16 | low; }
     static inline uint32_t fat32_cluster_id(sfn_dir_t *d)   {return d->hi_start << 16 | d->lo_start; }
     uint32_t        getNextCluster(uint32_t cluster);
-    uint32_t        findEntry(const fpath_t& search_name) ;
-
+    uint32_t        findEntryCluster(const fpath_t& search_name) ; // returns first sector of a file
+    uint32_t        findEntrySector(const fpath_t& search_name) {return firstSectorOfCluster(findEntryCluster(search_name));}
     
     /**********************************************************************
      * fat32 helpers.

@@ -115,7 +115,8 @@ void SDMMC_FAT32::testReadSpeed(uint32_t sectorsPerRead, uint32_t totalMB){
   uint32_t readCount = totalMB * 1024 * 1024 / BYTES_PER_SECTOR / sectorsPerRead;
   //auto rcv = static_cast<uint8_t*>(malloc(BYTES_PER_SECTOR*READ_BUF_SECTORS*sizeof(uint8_t)));
   uint8_t rcv[BYTES_PER_SECTOR*READ_BUF_SECTORS]; 
-  randomSeed(analogRead(0));
+  pinMode(18,INPUT);
+  randomSeed(analogRead(18));
   volatile size_t ms1, ms2;
   ms1 = micros();
   for (uint32_t i = 0; i<readCount; ++i) {    
@@ -132,21 +133,16 @@ void SDMMC_FAT32::testReadSpeed(uint32_t sectorsPerRead, uint32_t totalMB){
     
 void SDMMC_FAT32::begin(void)
 {
-  dirList_t* rootDirList_p = static_cast<dirList_t*>(ps_malloc(50*sizeof(dirList_t)));
-  dirList_t* dirList_p = static_cast<dirList_t*>(ps_malloc(500*sizeof(dirList_t)));
-  dirList_t &rootDirList = *rootDirList_p;
-  dirList_t &dirList = *dirList_p ;
-
 #ifdef USE_MUTEX
   mutex = xSemaphoreCreateMutex();
 #endif
   sdmmc_host_t host = SDMMC_HOST_DEFAULT();
   sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
   host.flags = SDMMC_HOST_FLAG_4BIT;
-  //  host.flags &= ~SDMMC_HOST_FLAG_DDR;       // DDR mode OFF
-  host.flags |= SDMMC_HOST_FLAG_DDR;          // DDR mode ON
-  host.max_freq_khz = SDMMC_FREQ_52M;
-  //  host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
+  host.flags &= ~SDMMC_HOST_FLAG_DDR;       // DDR mode OFF
+  // host.flags |= SDMMC_HOST_FLAG_DDR;          // DDR mode ON
+  // host.max_freq_khz = SDMMC_FREQ_52M;
+  host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
 #if defined SDMMC_D0
   gpio_pullup_en((gpio_num_t)SDMMC_D0);
   gpio_pullup_en((gpio_num_t)SDMMC_D1);
@@ -163,14 +159,16 @@ void SDMMC_FAT32::begin(void)
   slot_config.d3  = (gpio_num_t)SDMMC_D3;
  #endif
 #endif
+  
+   
   slot_config.width = 4;
-  ret = sdmmc_host_set_bus_ddr_mode(SDMMC_HOST_SLOT_1, true);
-  if(ret != ESP_OK) {    DEBF( "sdmmc_host_set_bus_ddr_mode : %s\r\n", esp_err_to_name(ret));   }
   ret = sdmmc_host_init();
   if(ret != ESP_OK) {    DEBF( "sdmmc_host_init : %s\r\n", esp_err_to_name(ret));  }
+  ret = sdmmc_host_set_bus_ddr_mode(SDMMC_HOST_SLOT_1, false);
+  if(ret != ESP_OK) {    DEBF( "sdmmc_host_set_bus_ddr_mode : %s\r\n", esp_err_to_name(ret));   }
   ret = sdmmc_host_init_slot(SDMMC_HOST_SLOT_1, &slot_config);
   if(ret != ESP_OK) {    DEBF( "sdmmc_host_init_slot : %s\r\n", esp_err_to_name(ret));  }
-  ret = sdmmc_card_init(&host, &card);
+  ret = sdmmc_card_init(&host, &card);  
   if(ret != ESP_OK) {    DEBF( "sdmmc_card_init : %s\r\n", esp_err_to_name(ret));  }
   sdmmc_card_print_info(stdout, &card);
   uint32_t width = sdmmc_host_get_slot_width(SDMMC_HOST_SLOT_1);
@@ -179,6 +177,21 @@ void SDMMC_FAT32::begin(void)
   if(ret != ESP_OK) {    DEBF( "get_mbr : %s\r\n", esp_err_to_name(ret));  }
   ret = get_bpb();
   if(ret != ESP_OK) {    DEBF( "get_bpb : %s\r\n", esp_err_to_name(ret));  }
+
+
+/*
+ * 
+ *  sdmmc_host_set_cclk_always_on(int slot, bool cclk_always_on);
+ *  sdmmc_host_set_bus_width(int slot, size_t width);
+ *  sdmmc_host_set_card_clk(int slot, uint32_t freq_khz);
+ *  sdmmc_host_set_bus_ddr_mode(int slot, bool ddr_enabled);
+ *  sdmmc_host_get_real_freq(int slot, int *real_freq_khz);
+ *  sdmmc_host_set_input_delay(int slot, sdmmc_delay_phase_t delay_phase);
+ *  
+ *  SDMMC_SLOT_FLAG_INTERNAL_PULLUP macro
+ *  
+ */
+  
 }
 
 void SDMMC_FAT32::end() {
@@ -247,7 +260,34 @@ uint32_t SDMMC_FAT32::getNextCluster(uint32_t cluster) {
   return nextCluster;
 }
 
-uint32_t SDMMC_FAT32::findEntry(const fpath_t& search_path) {
+
+entry_t* SDMMC_FAT32::findEntry(const fpath_t& search_path) {
+  entry_t* entry;
+  fpath_t name, testname;
+  name = search_path;
+  name.toUpperCase();
+  name.replace("\\",""); 
+  DEBF("Searching in <%s> for [%s] entry:\r\n", _currentDir.c_str(), search_path.c_str());
+  rewindDir();
+  entry = nextEntry();
+  while (!entry->is_end) {
+    testname = entry->name;
+    testname.toUpperCase();
+    //DEBF("compare <%s> <%s>\r\n", name.c_str(), testname.c_str());
+    if (testname == name) {
+      return entry;
+      break;
+    }
+    entry = nextEntry();
+  }
+  entry->is_dir = -1;
+  entry->is_end = 1;
+  entry->name = "";
+  entry->size = 0;
+  return entry;
+}
+
+uint32_t SDMMC_FAT32::findEntryCluster(const fpath_t& search_path) {
   uint32_t first_cluster = 0;
   entry_t* entry;
   fpath_t name, testname;
@@ -270,6 +310,18 @@ uint32_t SDMMC_FAT32::findEntry(const fpath_t& search_path) {
   return first_cluster;
 }
 
+uint8_t* SDMMC_FAT32::readFirstSector(const fname_t& fname) {
+  uint32_t sec = findEntrySector(fname);
+  read_sector(sec);
+  return &sector_buf[0];
+}
+
+uint8_t* SDMMC_FAT32::readFirstSector(entry_t* entry) {
+  uint32_t sec = entry->sectors[0].first;
+  read_sector(sec);
+  return &sector_buf[0];
+}
+
 void SDMMC_FAT32::setCurrentDir(fpath_t dir_path){
   // not fully implemented, for now it accepts "" or "/" as a root folder, or some name without slashes as a directory in a root, yes only 1 level
   if (dir_path == "" || dir_path == "/" || dir_path == "\\") {
@@ -288,23 +340,23 @@ void SDMMC_FAT32::setCurrentDir(fpath_t dir_path){
       dir_path.remove(0, i + 1);
     }
     // here we are supposed to have the last portion of the given pathname
-    _startCluster   = findEntry(dir_path);
+    _startCluster   = findEntryCluster(dir_path);
     _currentDir = dir_path;
   }
   _currentCluster   = _startCluster;
   _startSector      = firstSectorOfCluster(_startCluster);
   _currentSector    = _startSector;
-  DEBF("Current ROOT set to <%s>\r\n", _currentDir.c_str() );
+  DEBF("SDMMC: Current ROOT set to <%s>\r\n", _currentDir.c_str() );
 }
 
 void SDMMC_FAT32::rewindDir() {
-  _currentCluster   = _startCluster;
-  _startSector      = firstSectorOfCluster(_startCluster);
-  _currentSector    = _startSector;
-  _dirent_num = 0;
-  _currentEntry.name = "";
-  _currentEntry.size = 0;
-  _currentEntry.is_dir = -1;
+  _currentCluster       = _startCluster;
+  _startSector          = firstSectorOfCluster(_startCluster);
+  _currentSector        = _startSector;
+  _dirent_num           = 0;
+  _currentEntry.name    = "";
+  _currentEntry.size    = 0;
+  _currentEntry.is_dir  = -1;
   _currentEntry.sectors.clear();
 }
 
@@ -312,7 +364,11 @@ entry_t* SDMMC_FAT32::nextEntry() {
   entry_t* ent;
   ent = buildNextEntry();
   while (!(ent->is_end)) {
-    if (ent->is_dir>=0)     return ent;
+    if (ent->is_dir>=0)
+    {
+  //    DEBF("inside nextEntry() %s %d\r\n", ent->name.c_str(), ent->sectors[0].first); 
+      return ent;
+    }
     ent = buildNextEntry();
   }
   return ent;
@@ -398,25 +454,29 @@ entry_t* SDMMC_FAT32::buildNextEntry() {
       _currentEntry.is_dir = (rec_array[_dirent_num].attr&FAT32_DIR);
 
       cl = fat32_cluster_id(&rec_array[_dirent_num]);
-      cl_addr = cl;
-      cl = getNextCluster(cl_addr);
-      chain.first=firstSectorOfCluster(cl_addr);
-  //    DEB("First:");
-  //    DEBUG(chain.first);
+      
+      chain.first=firstSectorOfCluster(cl);
       chain.last = chain.first;
-      while(fat_entry_type(cl)!=LAST_CLUSTER) {
-        cl_addr = cl;
+      cl_addr = cl;
+      while (true) {
         cl = getNextCluster(cl_addr);
-        if ( (cl - cl_addr) != 1 ) {
+        if (fat_entry_type(cl)==LAST_CLUSTER) {
           chain.last = lastSectorOfCluster(cl_addr);
-        //  entry.sectors.push_back(chain);
- //         DEBF("Fragm:%d\r\n",chain.last);
+          break;
+        }
+        if ( (cl - cl_addr) != 1 ) { 
+          chain.last = lastSectorOfCluster(cl_addr);
+          _currentEntry.sectors.push_back(chain);
           chain.first = firstSectorOfCluster(cl);
-        }        
+        }
+        cl_addr = cl;
       }
       _currentEntry.sectors.push_back(chain);
- //     DEB("Last:");
- //     DEBUG(chain.last);            
+
+    //  DEB("First:");
+    //  DEBUG(chain.first);
+    //  DEB("Last:");
+     // DEBUG(chain.last);            
       memset(&fname, 0, 513);
       _dirent_num++;
       return &_currentEntry;
