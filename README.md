@@ -1,4 +1,4 @@
-Simplified READ-ONLY FAT32 class for fast accessing and reading of WAV files. 
+Simplified READ-ONLY FAT32 class for fast accessing and reading of (in my case WAV) files. 
 Cluster chains are to be pre-cached (on the application side) for directory files, and stored in memory as a collection of linear sector chain boundaries. Ideally, when no fragmentation appears, only a single pair of sectors (beginning/end) per file needed.
 
 calls are like this:
@@ -29,7 +29,7 @@ Card.end();
 
 It is neither a product nor a code of beauty, but some stuff one can find useful for particular needs. For example, this may help with reading files from the SD with a reasonable good speed and constant low access time.
 For example, standard Arduino ESP32 core lib gives ~5 ms lag before opening first file in the given directory, and ~20 ms lag for the 200th file, because of scanning directory entries.
-This class allows addressing files directly by sectors, and read sector-aligned blocks.
+This class allows addressing files directly by sectors, and reading of sector-aligned blocks.
 
 This is what I have measured for an old random 16GB Card that I had.
 |sectors per read  |  reading speed, MB/s |
