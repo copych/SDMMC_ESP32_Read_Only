@@ -5,6 +5,8 @@ calls are like this:
 
 ```
 SDMMC_FAT32 Card;
+SDMMC_FileReader Reader(&Card);
+
 entry_t* entry;
 
 Card.begin();
@@ -24,6 +26,15 @@ while (!entry->is_end) {
     }
     entry = Card.nextEntry();
 }
+
+str_max_t str="";
+Reader.open("config.ini"); 
+while (Reader.available()) {
+    Reader.read_line(str);
+    DEBUG(str.c_str());
+}
+Reader.close();
+
 Card.end();
 ```
 
