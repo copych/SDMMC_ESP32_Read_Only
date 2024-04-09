@@ -6,6 +6,7 @@
 
 #define MAX_NAME_LEN (64)   // must be dividible by 4
 #define MAX_PATH_LEN (128)  // must be dividible by 4
+#define MAX_STR_LEN (256)   // max string size
 #define BYTES_PER_SECTOR (512)
 #define FAT_CACHE_SECTORS (8)
 #define DIR_CACHE_SECTORS (8)
@@ -14,6 +15,7 @@
 
 using  fname_t = FixedString<MAX_NAME_LEN>   ;
 using  fpath_t = FixedString<MAX_PATH_LEN>   ;
+using  str_max_t = FixedString<MAX_STR_LEN>   ;
 
 // directory attribute types.
 enum {

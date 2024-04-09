@@ -64,29 +64,47 @@ sectors per read  |  reading speed, MB/s
  *  
  */
 // debug macros
+    #define DEB(...) USBSerial.print(__VA_ARGS__) 
+    #define DEBF(...) USBSerial.printf(__VA_ARGS__) 
+    #define DEBUG(...) USBSerial.println(__VA_ARGS__) 
+/*
 #ifdef DEBUG_ON
-  #define DEB(...) Serial.print(__VA_ARGS__) 
-  #define DEBF(...) Serial.printf(__VA_ARGS__) 
-  #define DEBUG(...) Serial.println(__VA_ARGS__) 
+  #if  !defined(CONFIG_IDF_TARGET_ESP32S3) 
+  #else
+    #define DEB(...) Serial.print(__VA_ARGS__) 
+    #define DEBF(...) Serial.printf(__VA_ARGS__) 
+    #define DEBUG(...) Serial.println(__VA_ARGS__) 
+  #endif
 #else
   #define DEB(...)
   #define DEBF(...)
   #define DEBUG(...)
 #endif
-
+*/
 #include <Arduino.h>
 #include "sdmmc.h"
+#include "sdmmc_file.h"
 
 SDMMC_FAT32 Card;
-  
+
 SET_LOOP_TASK_STACK_SIZE(READ_BUF_SECTORS*BYTES_PER_SECTOR+10000); // if you want some more on stack during setup() or loop() instead of creating separate tasks
 
 void setup() {
   btStop(); // we don't want bluetooth to consume our precious cpu time 
-  Serial.begin(115200); 
-  
-  delay(1000);
-  
+
+
+
+delay(500);
+    USBSerial.begin(115200);  
+delay(500);
+/*
+  #if !defined(CONFIG_IDF_TARGET_ESP32S3) 
+    USBSerial.begin(115200);  
+  #else
+    Serial.begin(115200);  
+  #endif
+  */
+
   DEBUG(">>>Init SD_MMC Card");
   Card.begin();
   DEBUG("<<<SD_MMC Init done\r\n");
@@ -101,21 +119,38 @@ void setup() {
 
   DEBUG();
 
-  // Scan root directry and list first available dir
+  // Scan root directory and list first available dir
   entry_t* entry;
   Card.rewindDir();
   entry = Card.nextEntry();
   while (!entry->is_end) {
     if (entry->is_dir) {
       Card.setCurrentDir(entry->name);
-      Card.printCurrentDir();
+    //  Card.printCurrentDir();
       break;
     }
     entry = Card.nextEntry();
   }
+delay(1000);
+
+
+  Card.setCurrentDir("/");
+  Card.setCurrentDir("/drums1/");
+ // Card.printCurrentDir();
+  SDMMC_FileReader Reader(&Card);
+
+  str_max_t str="";
+  Reader.open("sampler.ini"); 
   
+  while (Reader.available()) {
+    Reader.read_line(str);
+    DEBUG(str.c_str());
+  }
+  Reader.close();
+
   Card.end();
 }
+
 
 void loop() {
   vTaskDelete(NULL);
